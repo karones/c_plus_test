@@ -1,23 +1,25 @@
 #include <iostream>
 #include <getopt.h>
 #include "main.h"
+#include <arpa/inet.h>
+#include <algorithm>
 
 using namespace std;
 
 
 void help() {
-    std::cout << "filter [options] <input filename> <output filename> \n"
-                 " The utility should support any combination of following options\n"
-                 " -ip x.x.x.x – ip address of the packet, source or destination\n"
-                 " -sip x.x.x.x – source ip address of the packet should match\n"
-                 " -dip x.x.x.x – destination ip\n"
-                 " -tcp x – packet should have tcp type and that port, source or destination\n"
-                 " -stcp x - packet should have tcp type and that source port\n"
-                 " -dtcp x - packet should have tcp type and that destination port\n"
-                 " -udp x – packet should have udp type and that port, source or destination\n"
-                 " -sudp x – packet should have udp type and that source port\n"
-                 " -dudp x – packet should have udp type and that destination port\n"
-                 " -vlan x – packet should have at least one vlan tag with that id" << std::endl;
+    cout << "filter [options] <input filename> <output filename> \n"
+            " The utility should support any combination of following options\n"
+            " -ip x.x.x.x – ip address of the packet, source or destination\n"
+            " -sip x.x.x.x – source ip address of the packet should match\n"
+            " -dip x.x.x.x – destination ip\n"
+            " -tcp x – packet should have tcp type and that port, source or destination\n"
+            " -stcp x - packet should have tcp type and that source port\n"
+            " -dtcp x - packet should have tcp type and that destination port\n"
+            " -udp x – packet should have udp type and that port, source or destination\n"
+            " -sudp x – packet should have udp type and that source port\n"
+            " -dudp x – packet should have udp type and that destination port\n"
+            " -vlan x – packet should have at least one vlan tag with that id" << endl;
 
 }
 
@@ -54,15 +56,11 @@ int main(int argc, char *argv[]) {
         switch (rez) {
 
         case 'i': //ip
-            std::cout << optarg << std::endl;
-
             if (!first) {
                 filter.append(" or host ");
                 filter.append(optarg);
                 first = false;
             } else {
-                //  cout<<e.String()<<endl;
-
                 filter = "host ";
                 filter.append(optarg);
             }
@@ -179,18 +177,22 @@ int main(int argc, char *argv[]) {
             }
             break;
 
+            //        case 'v': //vlan
+            //            std::cout << optarg << std::endl;
+
+            //            if (!first) {
+            //                filter.append(" or vlan ");
+            //                filter.append(optarg);
+            //                first = false;
+            //            } else {
+
+            //                filter = "vlan ";
+            //                filter.append(optarg);
+            //            }
+            //            break;
         case 'v': //vlan
-            std::cout << optarg << std::endl;
-
-            if (!first) {
-                filter.append(" or vlan ");
-                filter.append(optarg);
-                first = false;
-            } else {
-
-                filter = "vlan ";
-                filter.append(optarg);
-            }
+            vlan_flag = true;
+            vlans.push_back( atoi(optarg));
             break;
 
 
@@ -272,9 +274,33 @@ int main(int argc, char *argv[]) {
         }
 
         dumpfile = pcap_dump_fopen(pcap, pFile);
-
+        //  const struct sniff_ethernet *ethernet; /* The ethernet header */
         while (pcap_next_ex(pcap, &header, &data) >= 0) {
+            //если используются параметр vlan
+            if (vlan_flag){
 
+                ethernet_h *ethernet = (struct ethernet_h*)(data);
+                if (ntohs(ethernet->ether_type )== 0x8100){
+
+                    u_short vlan = ntohs(*(u_short*)(data + sizeof(ethernet_h)));
+                    if (std::find(vlans.begin(), vlans.end(), vlan ) != end(vlans) )
+                    {
+                        pcap_dump((unsigned char *) dumpfile, header, data);
+                        continue;
+                    }
+                }
+                //на случай сдвоенного vlan
+                if (ntohs(*(u_short*)(data + sizeof(ethernet_h) + 2 ))== 0x8100){
+                    u_short vlan = ntohs(*(u_short*)(data + sizeof(ethernet_h) + 4));
+                    if (std::find(vlans.begin(), vlans.end(), vlan ) != end(vlans) )
+                    {
+                        pcap_dump((unsigned char *) dumpfile, header, data);
+                        continue;
+                    }
+                }
+                continue;
+            }
+            //остальные данные фильтруются библиотекой
             pcap_dump((unsigned char *) dumpfile, header, data);
 
         }
