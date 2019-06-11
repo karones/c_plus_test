@@ -191,6 +191,7 @@ int main(int argc, char *argv[]) {
             //            break;
         case 'v': //vlan
             vlan_flag = true;
+            //todo добавить проверку аргумента на корректность
             vlans.push_back( atoi(optarg));
             break;
             
